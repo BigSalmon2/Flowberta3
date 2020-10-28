@@ -43,7 +43,7 @@ def handle_requests_by_batch():
             batch_outputs = []
 
             for request in requests_batch:
-                batch_outputs.append(run(request["max_length"][0], request["prompt"][1]))
+                batch_outputs.append(run(request["input"][0], request["input"][1]))
 
             for request, output in zip(requests_batch, batch_outputs):
                 request["output"] = output
@@ -62,22 +62,20 @@ def run(length, prompt):
     try:
         prompt = prompt.strip()
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
-        length += len(input_ids.tolist()[0])
-        print(length)
+        min_length = len(input_ids.tolist()[0])
+        length += min_length
 
         s = time.time()
         sample_outputs = model.generate(input_ids, pad_token_id=50256, 
                                         do_sample=True, 
                                         max_length=length, 
-                                        min_length=0,
+                                        min_length=min_length,
                                         top_k=40,
                                         num_return_sequences=1)
-        print("{}초 경과 -----------------------".format(time.time()-s))
 
         generated_texts = []
         for i, sample_output in enumerate(sample_outputs):
-            generated_texts.append(tokenizer.decode(sample_output.tolist()))
-            print("{} >> {}".format(i+1, tokenizer.decode(sample_output.tolist(), skip_special_tokens=True)))
+            generated_texts.append(tokenizer.decode(sample_output.tolist(), skip_special_tokens=True))
         
         return generated_texts[0]
 
@@ -98,22 +96,21 @@ def generation():
             length = str(request.form['length'])
             prompt = str(request.form['prompt'])
             length = int(length)
-            print(type(length),length)
-            print(type(prompt),prompt)
+            
         except Exception:
             return jsonify({'message' : 'Error! Can not read length from request'}), 500
 
         # put data to request_queue
         req = {'input' : [length, prompt]}
         requests_queue.put(req)
-        print("@")
+        
         # wait output
         while 'output' not in req:
             time.sleep(CHECK_INTERVAL)
        
         # send output
         generated_text = req['output']
-        print("!")
+        
         if generated_text == 500:
             return jsonify({'message': 'Error! An unknown error occurred on the server'}), 500
         
