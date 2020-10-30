@@ -10,17 +10,21 @@ import time
 
 # import for model
 from transformers import AutoTokenizer, AutoModelWithLMHead
+import torch
 import time
 
 # flask server
 app = Flask(__name__)
 
 # limit input file size under 2MB
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 
 
 # model loading
 tokenizer = AutoTokenizer.from_pretrained("pranavpsv/gpt2-genre-story-generator")
 model = AutoModelWithLMHead.from_pretrained("pranavpsv/gpt2-genre-story-generator")
+
+# change cpu to gpu so that model can use gpu (because default type is cpu)
+device = torch.device("cuda")
+model.to(device)
 
 # request queue setting
 requests_queue = Queue()
@@ -43,7 +47,7 @@ def handle_requests_by_batch():
             batch_outputs = []
 
             for request in requests_batch:
-                batch_outputs.append(run(request["input"][0], request["input"][1]))
+                batch_outputs.append(run(request["input"][0], request["input"][1], request["input"][2]))
 
             for request, output in zip(requests_batch, batch_outputs):
                 request["output"] = output
@@ -58,33 +62,37 @@ def handle_requests_by_batch():
 threading.Thread(target=handle_requests_by_batch).start()
 
 # run model
-def run(length, prompt):
+def run(num, length, prompt):
     try:
         prompt = prompt.strip()
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
+        
+        # input_ids also need to apply gpu device!
+        input_ids = input_ids.to(device)
+
         min_length = len(input_ids.tolist()[0])
         length += min_length
 
-        s = time.time()
         sample_outputs = model.generate(input_ids, pad_token_id=50256, 
                                         do_sample=True, 
                                         max_length=length, 
-                                        min_length=min_length,
+                                        min_length=length,
                                         top_k=40,
-                                        num_return_sequences=1)
+                                        num_return_sequences=num)
 
         generated_texts = []
         for i, sample_output in enumerate(sample_outputs):
-            generated_texts.append(tokenizer.decode(sample_output.tolist(), skip_special_tokens=True))
+            output = tokenizer.decode(sample_output.tolist()[min_length:], skip_special_tokens=True)
+            generated_texts.append(output)
         
-        return generated_texts[0]
+        return generated_texts
 
     except Exception as e:
         print(e)
         return 500
 
 # routing
-@app.route("/generation", methods=['POST'])
+@app.route("/gpt2-story-generation", methods=['POST'])
 def generation():
     try:
         # only get one request at a time
@@ -93,15 +101,17 @@ def generation():
     
         # check image format
         try:
+            num = str(request.form['num_samples'])
             length = str(request.form['length'])
-            prompt = str(request.form['prompt'])
+            prompt = str(request.form['text'])
+            num = int(num)
             length = int(length)
             
         except Exception:
             return jsonify({'message' : 'Error! Can not read length from request'}), 500
 
         # put data to request_queue
-        req = {'input' : [length, prompt]}
+        req = {'input' : [num, length, prompt]}
         requests_queue.put(req)
         
         # wait output
@@ -114,9 +124,13 @@ def generation():
         if generated_text == 500:
             return jsonify({'message': 'Error! An unknown error occurred on the server'}), 500
         
-        result = jsonify({'generated_text' : generated_text})
+        result = {}
+        for i, text in enumerate(generated_text):
+            result[i] = text
         
-        return result, 200
+        result = jsonify(result)
+        
+        return result
     
     except Exception as e:
         print(e)
