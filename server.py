@@ -9,7 +9,8 @@ import threading
 import time
 
 # import for model
-from transformers import AutoTokenizer, AutoModelWithLMHead
+from transformers import AutoTokenizer, AutoModelWithLMHead, top_k_top_p_filtering
+from torch.nn import functional as F
 import torch
 import time
 
@@ -20,7 +21,7 @@ app = Flask(__name__)
 
 # model loading
 tokenizer = AutoTokenizer.from_pretrained("pranavpsv/gpt2-genre-story-generator")
-model = AutoModelWithLMHead.from_pretrained("pranavpsv/gpt2-genre-story-generator")
+model = AutoModelWithLMHead.from_pretrained("pranavpsv/gpt2-genre-story-generator", return_dict=True)
 
 # change cpu to gpu so that model can use gpu (because default type is cpu)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -47,7 +48,10 @@ def handle_requests_by_batch():
             batch_outputs = []
 
             for request in requests_batch:
-                batch_outputs.append(run(request["input"][0], request["input"][1], request["input"][2]))
+                if len(request["input"]) == 2:
+                    batch_outputs.append(run_short(request["input"][0], request["input"][1]))
+                elif len(request["input"]) == 3:
+                    batch_outputs.append(run_long(request["input"][0], request["input"][1], request["input"][2]))
 
             for request, output in zip(requests_batch, batch_outputs):
                 request["output"] = output
@@ -61,8 +65,35 @@ def handle_requests_by_batch():
 # request processing
 threading.Thread(target=handle_requests_by_batch).start()
 
-# run model
-def run(num, length, prompt):
+# run short model
+def run_short(prompt, num):
+    try:
+        prompt = prompt.strip()
+        input_ids = tokenizer.encode(prompt, return_tensors='pt')
+        
+        # input_ids also need to apply gpu device!
+        input_ids = input_ids.to(device)
+
+        # get logits of last hidden state
+        next_token_logits = model(input_ids).logits[:, -1, :]
+        # filter
+        filtered_next_token_logits = top_k_top_p_filtering(next_token_logits, top_k=50, top_p=1.0)
+        # sample
+        probs = F.softmax(filtered_next_token_logits, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=num)
+
+        result = {}
+        for idx, token in enumerate(next_token.tolist()[0]):
+            result[idx] = tokenizer.decode(token)
+
+        return result
+
+    except Exception as e:
+        print(e)
+        return 500
+
+# run long model
+def run_long(prompt, num, length):
     try:
         prompt = prompt.strip()
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
@@ -80,10 +111,10 @@ def run(num, length, prompt):
                                         top_k=40,
                                         num_return_sequences=num)
 
-        generated_texts = []
+        generated_texts = {}
         for i, sample_output in enumerate(sample_outputs):
             output = tokenizer.decode(sample_output.tolist()[min_length:], skip_special_tokens=True)
-            generated_texts.append(output)
+            generated_texts[i] = output
         
         return generated_texts
 
@@ -92,26 +123,35 @@ def run(num, length, prompt):
         return 500
 
 # routing
-@app.route("/gpt2-story-generation", methods=['POST'])
-def generation():
+@app.route("/gpt2-story/<types>", methods=['POST'])
+def generation(types):
     try:
+        if types != 'short' and types != 'long':
+            return jsonify({'message' : 'Error! Can not route short or long'}), 400
+
         # only get one request at a time
         if requests_queue.qsize() > BATCH_SIZE:
             return jsonify({'message' : 'TooManyReqeusts'}), 429
     
         # check image format
         try:
-            num = str(request.form['num_samples'])
-            length = str(request.form['length'])
+            args = []
+
             prompt = str(request.form['text'])
-            num = int(num)
-            length = int(length)
+            num = int(str(request.form['num_samples']))
+            
+            args.append(prompt)
+            args.append(num)
+
+            if types == 'long':
+                length = int(str(request.form['length']))
+                args.append(length)
             
         except Exception:
-            return jsonify({'message' : 'Error! Can not read length from request'}), 500
+            return jsonify({'message' : 'Error! Can not read args from request'}), 500
 
         # put data to request_queue
-        req = {'input' : [num, length, prompt]}
+        req = {'input' : args}
         requests_queue.put(req)
         
         # wait output
@@ -124,11 +164,7 @@ def generation():
         if generated_text == 500:
             return jsonify({'message': 'Error! An unknown error occurred on the server'}), 500
         
-        result = {}
-        for i, text in enumerate(generated_text):
-            result[i] = text
-        
-        result = jsonify(result)
+        result = jsonify(generated_text)
         
         return result
     
