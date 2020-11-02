@@ -12,10 +12,10 @@ info:
     url: https://github.com/huggingface/transformers/blob/master/LICENSE
 
 servers:
-  - url: https://master-instafilter-gmlee329.endpoint.ainize.ai
+  - url: https://main-gpt2-story-gmlee329.endpoint.ainize.ai
 
 paths:
-  /generation:
+  /gpt2-story/short:
     post:
       requestBody:
         required: true
@@ -27,9 +27,43 @@ paths:
             schema:
               type: object
               properties:
-                length:
+                text:
                   type: string
-                prompt:
+                num_samples:
+                  type: string
+      responses:
+        '200':
+          description: success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad Request
+        
+        '429':
+          description: Busy to server, please retry again.
+
+        '500':
+          description: Server side error
+  
+  /gpt2-story/long:
+    post:
+      requestBody:
+        required: true
+        description: | 
+          Specify a length of the text and set the start prompt for the text to be generated.
+          The length must can be parse to integer
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                num_samples:
+                  type: string
+                length:
                   type: string
       responses:
         '200':
