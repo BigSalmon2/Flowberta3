@@ -23,7 +23,7 @@ tokenizer = AutoTokenizer.from_pretrained("pranavpsv/gpt2-genre-story-generator"
 model = AutoModelWithLMHead.from_pretrained("pranavpsv/gpt2-genre-story-generator")
 
 # change cpu to gpu so that model can use gpu (because default type is cpu)
-device = torch.device("cuda")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 
 # request queue setting
