@@ -7,7 +7,7 @@ When you enter text at the beginning of the story, the model gives you the rest 
 
 This API has 2 routing address
 
-**POST parameter**
+***POST parameter**
 
 ***/long***  
 text : begining of the text you want to generate  
