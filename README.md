@@ -1,6 +1,6 @@
 # gpt2_stor
 
-##How to use
+## How to use
 
 This API has 2 versions available
 
