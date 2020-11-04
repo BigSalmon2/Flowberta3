@@ -1,6 +1,8 @@
 # gpt2_story
-This GPT2-story model generates genre story text. 
+
+This GPT2-story model generates genre story text.  
 When you enter text at the beginning of the story, the model gives you the rest of the story as long as you want.
+
 ## How to use
 
 This API has 2 versions available
