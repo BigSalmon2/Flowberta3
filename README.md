@@ -19,6 +19,7 @@ text : begining of the text you want to generate
 number_samples : the number of word that will be generated  
 
 **# With CLI** :  
+
 curl --location --request POST 'https://main-gpt2-story-gmlee329.endpoint.ainize.ai/gpt2-story/long' --form 'text=once upon a time' --form 'num_samples=5' --form 'length=10'
   
 curl --location --request POST 'https://main-gpt2-story-gmlee329.endpoint.ainize.ai/gpt2-story/short' --form 'text=once upon a time' --form 'num_samples=5'
