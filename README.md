@@ -1,4 +1,4 @@
-# gpt2_stor
+# gpt2_story
 
 ## How to use
 
