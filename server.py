@@ -1,176 +1,90 @@
-import numpy as np
-import os
-import io
+from flask import Flask, request, Response, jsonify
 
-# import for server
-from flask import Flask, render_template, request, Response, send_file, jsonify
-from queue import Queue, Empty
+import json 
+import time
 import threading
-import time
+from queue import Queue, Empty
 
-# import for model
-from transformers import AutoTokenizer, AutoModelWithLMHead, top_k_top_p_filtering
-from torch.nn import functional as F
 import torch
-import time
+from torch.nn import functional as F
+from transformers import AutoModelWithLMHead
 
-# flask server
+
 app = Flask(__name__)
 
-# limit input file size under 2MB
-
-# model loading
-tokenizer = AutoTokenizer.from_pretrained("pranavpsv/gpt2-genre-story-generator")
-model = AutoModelWithLMHead.from_pretrained("pranavpsv/gpt2-genre-story-generator", return_dict=True)
-
-# change cpu to gpu so that model can use gpu (because default type is cpu)
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model.to(device)
-
-# request queue setting
 requests_queue = Queue()
 BATCH_SIZE = 1
 CHECK_INTERVAL = 0.1
 
-# static variable
+model = AutoModelWithLMHead.from_pretrained("pranavpsv/gpt2-genre-story-generator", return_dict=True)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
 
-# request handling
 def handle_requests_by_batch():
-    try:
-        while True:
-            requests_batch = []
-            while not (len(requests_batch) >= BATCH_SIZE):
-                try:
-                    requests_batch.append(requests_queue.get(timeout=CHECK_INTERVAL))
-                except Empty:
-                    continue
-                
-            batch_outputs = []
+    while True:
+        requests_batch = []
+        while not (len(requests_batch) >= BATCH_SIZE):
+            try:
+                requests_batch.append(requests_queue.get(timeout=CHECK_INTERVAL))
+            except Empty:
+                continue
 
-            for request in requests_batch:
-                if len(request["input"]) == 2:
-                    batch_outputs.append(run_short(request["input"][0], request["input"][1]))
-                elif len(request["input"]) == 3:
-                    batch_outputs.append(run_long(request["input"][0], request["input"][1], request["input"][2]))
-
-            for request, output in zip(requests_batch, batch_outputs):
-                request["output"] = output
-
-    except Exception as e:
-        while not requests_queue.empty():
-            requests_queue.get()
-        print(e)
+            for requests in requests_batch:
+                requests['output'] = run_generate(requests['input'][0], requests['input'][1], requests['input'][2])
 
 
-# request processing
 threading.Thread(target=handle_requests_by_batch).start()
 
-# run short model
-def run_short(prompt, num):
+def run_generate(input_ids, num_samples, length):
+    inputs = []
+
+    for input_id in input_ids:
+        inputs.append(int(input_id))
+
+    token_tensor = torch.LongTensor([inputs]).to(device)
+
+    outputs = model.generate(
+        token_tensor,
+        pad_token_id=50256,
+        max_length=length,
+        min_length=length,
+        do_sample=True,
+        top_k=50,
+        num_return_sequences=num_samples,
+    )
+
+    outputs = str(outputs.tolist())
+
+    return outputs
+
+@app.route("/gpt2-story", methods=["POST"])
+def gpt2():
+
+    # 큐에 쌓여있을 경우,
+    if requests_queue.qsize() > BATCH_SIZE:
+        return jsonify({'error': 'TooManyReqeusts'}), 429
+
+    data = request.json
+
     try:
-        prompt = prompt.strip()
-        input_ids = tokenizer.encode(prompt, return_tensors='pt')
-        
-        # input_ids also need to apply gpu device!
-        input_ids = input_ids.to(device)
-
-        # get logits of last hidden state
-        next_token_logits = model(input_ids).logits[:, -1, :]
-        # filter
-        filtered_next_token_logits = top_k_top_p_filtering(next_token_logits, top_k=50, top_p=1.0)
-        # sample
-        probs = F.softmax(filtered_next_token_logits, dim=-1)
-        next_token = torch.multinomial(probs, num_samples=num)
-
-        result = {}
-        for idx, token in enumerate(next_token.tolist()[0]):
-            result[idx] = tokenizer.decode(token)
-
-        return result
-
-    except Exception as e:
-        print(e)
-        return 500
-
-# run long model
-def run_long(prompt, num, length):
-    try:
-        prompt = prompt.strip()
-        input_ids = tokenizer.encode(prompt, return_tensors='pt')
-        
-        # input_ids also need to apply gpu device!
-        input_ids = input_ids.to(device)
-
-        min_length = len(input_ids.tolist()[0])
-        length += min_length
-
-        sample_outputs = model.generate(input_ids, pad_token_id=50256, 
-                                        do_sample=True, 
-                                        max_length=length, 
-                                        min_length=length,
-                                        top_k=40,
-                                        num_return_sequences=num)
-
-        generated_texts = {}
-        for i, sample_output in enumerate(sample_outputs):
-            output = tokenizer.decode(sample_output.tolist()[min_length:], skip_special_tokens=True)
-            generated_texts[i] = output
-        
-        return generated_texts
-
-    except Exception as e:
-        print(e)
-        return 500
-
-# routing
-@app.route("/gpt2-story/<types>", methods=['POST'])
-def generation(types):
-    try:
-        if types != 'short' and types != 'long':
-            return jsonify({'message' : 'Error! Can not route short or long'}), 400
-
-        # only get one request at a time
-        if requests_queue.qsize() > BATCH_SIZE:
-            return jsonify({'message' : 'TooManyReqeusts'}), 429
+        args= [] 
+        args.append(data['text'])
+        args.append(data['num_samples'])
+        args.append(data['length'])
+    except Exception:
+        return jsonify({'error':'Invalid Inputs'}), 400
     
-        # check image format
-        try:
-            args = []
+    req = {
+        'input': args
+    }
+    requests_queue.put(req)
 
-            prompt = str(request.form['text'])
-            num = int(str(request.form['num_samples']))
-            
-            args.append(prompt)
-            args.append(num)
-
-            if types == 'long':
-                length = int(str(request.form['length']))
-                args.append(length)
-            
-        except Exception:
-            return jsonify({'message' : 'Error! Can not read args from request'}), 500
-
-        # put data to request_queue
-        req = {'input' : args}
-        requests_queue.put(req)
-        
-        # wait output
-        while 'output' not in req:
-            time.sleep(CHECK_INTERVAL)
-       
-        # send output
-        generated_text = req['output']
-        
-        if generated_text == 500:
-            return jsonify({'message': 'Error! An unknown error occurred on the server'}), 500
-        
-        result = jsonify(generated_text)
-        
-        return result
+    while 'output' not in req:
+        time.sleep(CHECK_INTERVAL)
     
-    except Exception as e:
-        print(e)
-        return jsonify({'message': 'Error! Unable to process request'}), 400
+    result = req['output']
+
+    return result
 
 @app.route('/healthz')
 def health():
@@ -178,7 +92,7 @@ def health():
 
 @app.route('/')
 def main():
-    return "ok", 200
+    return "USE API", 200
 
 if __name__ == "__main__":
     from waitress import serve
