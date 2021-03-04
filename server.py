@@ -70,8 +70,8 @@ threading.Thread(target=handle_requests_by_batch).start()
 def run_model(prompt, num, length, model_name):
     try:
       sentence = prompt.strip()
-      model = models[model_name]
-      tokenizer = tokenizers[model_name]
+      model = model
+      tokenizer = tokenizer
       token_ids = tokenizer.encode(sentence, return_tensors='pt')
       token_ids_tk = tokenizer.tokenize(sentence, return_tensors='pt')
       masked_position = (token_ids.squeeze() == tokenizer.mask_token_id).nonzero()
