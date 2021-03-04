@@ -34,6 +34,12 @@ for model_name in model_names:
         model_name, return_dict=True)
     models[model_name].to(device)
     print(f'{model_name} model loadeding complete..')
+ 
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+
+tokenizer = AutoTokenizer.from_pretrained("roberta-base")
+
+model = AutoModelForMaskedLM.from_pretrained("roberta-base")
 
 # request queue setting
 requests_queue = Queue()
@@ -103,7 +109,7 @@ def run_model(prompt, num, length, model_name):
 # routing
 
 
-@app.route("/gpt2-tweets", methods=['POST'])
+@app.route("/gpt2-story", methods=['POST'])
 def generation():
     try:
         # only get one request at a time
@@ -116,6 +122,7 @@ def generation():
             model_name = str(request.form['model'])
             if model_name not in model_names:
                 return jsonify({'message': 'Error! There is no model'}), 400
+            model_name = "roberta-base"
             prompt = str(request.form['text'])
             num = int(str(request.form['num_samples']))
             length = int(str(request.form['length']))
