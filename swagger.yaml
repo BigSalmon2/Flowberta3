@@ -12,7 +12,7 @@ info:
     url: https://github.com/huggingface/transformers/blob/master/LICENSE
 
 servers:
-  - url: https://main-gpt2-story-gmlee329.endpoint.ainize.ai
+  - url: https://main-gpt2-story-zanderbush.endpoint.ainize.ai/
 
 paths:
   /gpt2-story/short:
