@@ -12,10 +12,10 @@ info:
     url: https://github.com/huggingface/transformers/blob/master/LICENSE
 
 servers:
-  - url: https://main-gpt2-story-zanderbush.endpoint.ainize.ai/
+  - url: https://main-gpt2-story-big-salmon2.endpoint.ainize.ai/
 
 paths:
-  /gpt2-story/short:
+  /gpt2-story:
     post:
       requestBody:
         required: true
@@ -27,9 +27,14 @@ paths:
             schema:
               type: object
               properties:
+                model: 
+                  type: string 
+                  enum: ['roberta-base']
                 text:
                   type: string
                 num_samples:
+                  type: string
+                length:
                   type: string
       responses:
         '200':
