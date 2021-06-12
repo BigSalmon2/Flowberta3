@@ -19,7 +19,7 @@ app = Flask(__name__)
 
 # static variables
 huggingtweets = "ok"
-model_names = ['roberta-base']
+model_names = ['BigSalmon/Flowberta']
 tokenizers = dict()
 models = dict()
 
@@ -38,8 +38,7 @@ for model_name in model_names:
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 
 tokenizer = AutoTokenizer.from_pretrained("roberta-base")
-
-model = AutoModelForMaskedLM.from_pretrained("roberta-base")
+model = AutoModelForMaskedLM.from_pretrained("BigSalmon/Flowberta")
 
 # request queue setting
 requests_queue = Queue()
@@ -122,7 +121,7 @@ def generation():
             model_name = str(request.form['model'])
             if model_name not in model_names:
                 return jsonify({'message': 'Error! There is no model'}), 400
-            model_name = "roberta-base"
+            model_name = "BigSalmon/Flowberta
             prompt = str(request.form['text'])
             num = int(str(request.form['num_samples']))
             length = int(str(request.form['length']))
