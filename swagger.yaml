@@ -29,7 +29,7 @@ paths:
               properties:
                 model: 
                   type: string 
-                  enum: ['roberta-base']
+                  enum: ['BigSalmon/Flowberta']
                 text:
                   type: string
                 num_samples:
