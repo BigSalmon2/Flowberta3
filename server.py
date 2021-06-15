@@ -121,7 +121,7 @@ def generation():
             model_name = str(request.form['model'])
             if model_name not in model_names:
                 return jsonify({'message': 'Error! There is no model'}), 400
-            model_name = "BigSalmon/Flowberta
+            model_name = "BigSalmon/Flowberta"
             prompt = str(request.form['text'])
             num = int(str(request.form['num_samples']))
             length = int(str(request.form['length']))
