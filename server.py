@@ -124,7 +124,9 @@ def generation():
             prompt = str(request.form['text'])
             num = int(str(request.form['num_samples']))
             length = int(str(request.form['length']))
-
+            model_name = "BigSalmon/Flowberta"
+            num = int(str("3"))
+            length = int(str("3"))
             args.append(prompt)
             args.append(num)
             args.append(length)
