@@ -163,7 +163,7 @@ def health():
 
 @app.route('/')
 def main():
-    return "ok", 200
+    return render_template('main.html'), 200
 
 
 if __name__ == "__main__":
