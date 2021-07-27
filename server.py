@@ -28,8 +28,7 @@ device = torch.device('cpu')
 
 # model loading
 for model_name in model_names:
-    tokenizers[model_name] = AutoTokenizer.from_pretrained(
-        model_name)
+    tokenizers[model_name] = AutoTokenizer.from_pretrained(model_name)
     models[model_name] = AutoModelForMaskedLM.from_pretrained(
         model_name, return_dict=True)
     models[model_name].to(device)
@@ -37,7 +36,7 @@ for model_name in model_names:
  
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 
-tokenizer = AutoTokenizer.from_pretrained("roberta-base")
+tokenizer = AutoTokenizer.from_pretrained("BigSalmon/Flowberta")
 model = AutoModelForMaskedLM.from_pretrained("BigSalmon/Flowberta")
 
 # request queue setting
@@ -96,7 +95,7 @@ def run_model(prompt, num, length, model_name):
         list_of_list =[]
       for mask_index in masked_pos:
         mask_hidden_state = last_hidden_state[mask_index]
-        idx = torch.topk(mask_hidden_state, k=30, dim=0)[1]
+        idx = torch.topk(mask_hidden_state, k=50, dim=0)[1]
         words = [tokenizer.decode(i.item()).strip() for i in idx]
         list_of_list.append(words)
       return list_of_list
